@@ -27,6 +27,9 @@ setGeneric('nodeCount', signature='obj', function(obj) standardGeneric('nodeCoun
 setGeneric('edgeCount', signature='obj', function(obj, directed=TRUE) standardGeneric('edgeCount'))
 setGeneric('fullGraph', signature='obj', function(obj) standardGeneric('fullGraph'))
 setGeneric('getNodeLabels', signature='obj', function(obj) standardGeneric('getNodeLabels'))
+setGeneric('getNodeLabelDistribution', signature='obj', function(obj) standardGeneric('getNodeLabelDistribution'))
+setGeneric('getEdgeTypes', signature='obj', function(obj) standardGeneric('getEdgeTypes'))
+setGeneric('getEdgeTypeDistribution', signature='obj', function(obj) standardGeneric('getEdgeTypeDistribution'))
 
 setGeneric('getNodeTable', signature='obj', function(obj) standardGeneric('getNodeTable'))
 setGeneric('getEdgeTable', signature='obj', function(obj, directed=TRUE) standardGeneric('getEdgeTable'))
@@ -259,6 +262,77 @@ setMethod('getNodeLabels', 'neo4jService',
           }) # getNodeLabels
 
 #------------------------------------------------------------------------------------------------------------------------
+#' getNodeLabelDistribution
+#'
+#' @description
+#' report how many nodes are annotated to each label
+#'
+#' @rdname getNodeLabelDistribution
+#'
+#' @param obj  new4jService object
+#'
+#' @export
+#'
+#' @return a data.frame
+#'
+setMethod('getNodeLabelDistribution', 'neo4jService',
+
+      function(obj){
+          nodeLabels <- getNodeLabels(obj)
+          counts <- lapply(nodeLabels, function(label)
+                             query(obj, sprintf("match (n%s) return count(n)", label))$value)
+          names(counts) <- nodeLabels
+          data.frame(label=names(counts), count=as.numeric(counts), stringsAsFactors=FALSE)
+          }) # getNodeLabelDistribution
+
+#------------------------------------------------------------------------------------------------------------------------
+#' getEdgeTypes
+#'
+#' @description
+#' rerutn a sorted uniqued list of edge types
+#'
+#' @rdname getEdgeTypes
+#'
+#' @param obj  new4jService object
+#'
+#' @export
+#'
+#' @return character vector
+#'
+setMethod('getEdgeTypes', 'neo4jService',
+
+      function(obj){
+          tbl.raw <- query(obj, "match ()-[r]-() return distinct type(r)")
+          if(nrow(tbl.raw) == 0)
+              return(c())
+          return(sort(tbl.raw$value))
+          }) # getEdgeTypes
+
+#------------------------------------------------------------------------------------------------------------------------
+#' getEdgeTypeDistribution
+#'
+#' @description
+#' report how many nodes are annotated to each label
+#'
+#' @rdname getEdgeTypeDistribution
+#'
+#' @param obj  new4jService object
+#'
+#' @export
+#'
+#' @return a data.frame
+#'
+setMethod('getEdgeTypeDistribution', 'neo4jService',
+
+      function(obj){
+          edgeTypes <- getEdgeTypes(obj)
+          counts <- lapply(edgeTypes, function(type)
+                             query(ns, sprintf("match ()-[r:%s]-() return count(r)", type))$value)
+          names(counts) <- edgeTypes
+          data.frame(type=names(counts), count=as.numeric(counts), stringsAsFactors=FALSE)
+          }) # getEdgeTypeDistribution
+
+#------------------------------------------------------------------------------------------------------------------------
 #' return a reusable data.frame listing nodes and their properties
 #'
 #' @description
@@ -329,21 +403,24 @@ setMethod('getEdgeTable', 'neo4jService',
            attribute.names <- colnames(x$r)
 
            tbl <- data.frame(a=x$m$id, b=x$n$id, type=x$type$value, stringsAsFactors=FALSE)
+           browser()
            for(eda in attribute.names){
-               tbl <- cbind(tbl, x$r[eda])
-           }
+              tbl <- cbind(tbl, x$r[, eda])
+              }
 
            sigs <- vector("character", nrow(tbl))
 
            if(directed){
-               for(r in seq_len(nrow(tbl))){
-                   ordered.nodes <- sort(c(tbl[r, "a"], tbl[r, "b"]))
-                   sigs[r] <- sprintf("%s:%s:%s", tbl[r, "type"], ordered.nodes[1], ordered.nodes[2])
-               } # for r
-               deleters <- which(duplicated(sigs))
-               if(length(deleters) > 0)
-                   tbl <- tbl[-deleters,]
-           } # if directed
+              browser()
+              for(r in seq_len(nrow(tbl))){
+                 ordered.nodes <- sort(c(tbl[r, "a"], tbl[r, "b"]))
+                 sigs[r] <- sprintf("%s:%s:%s", tbl[r, "type"], ordered.nodes[1], ordered.nodes[2])
+                 } # for r
+              browser()
+              deleters <- which(duplicated(sigs))
+              if(length(deleters) > 0)
+                  tbl <- tbl[-deleters,]
+              } # if directed
 
            colnames(tbl)[1:3] <- c("source", "target", "interaction") # required by rcyjs
            return(tbl)

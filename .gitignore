@@ -1,7 +1,9 @@
 instances/northwind/data/databases/graph.db
 instances/northwind/data/databases/store_lock
 instances/northwind/data/dbms/*
-inst/extdata  # for now
+inst/extdata/data/databases/graph.db/*
+
+inst/extdata/*  # for now
 
 # History files
 .Rhistory
