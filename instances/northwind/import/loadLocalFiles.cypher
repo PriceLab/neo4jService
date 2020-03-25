@@ -4,18 +4,18 @@
 
 // Load records
 
-LOAD CSV WITH HEADERS FROM "http://data.neo4j.com/northwind/products.csv" AS row
+LOAD CSV WITH HEADERS FROM "file:///import/products.csv" AS row
 CREATE (n:Product)
 SET n = row,
   n.unitPrice = toFloat(row.unitPrice),
   n.unitsInStock = toInt(row.unitsInStock), n.unitsOnOrder = toInt(row.unitsOnOrder),
   n.reorderLevel = toInt(row.reorderLevel), n.discontinued = (row.discontinued <> "0");
 
-LOAD CSV WITH HEADERS FROM "http://data.neo4j.com/northwind/categories.csv" AS row
+LOAD CSV WITH HEADERS FROM "file:///import/categories.csv" AS row
 CREATE (n:Category)
 SET n = row;
 
-LOAD CSV WITH HEADERS FROM "http://data.neo4j.com/northwind/suppliers.csv" AS row
+LOAD CSV WITH HEADERS FROM "file:///import/suppliers.csv" AS row
 CREATE (n:Supplier)
 SET n = row;
 
