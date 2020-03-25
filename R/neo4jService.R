@@ -21,6 +21,7 @@
                              )
 #------------------------------------------------------------------------------------------------------------------------
 setGeneric('query',     signature='obj', function(obj, s) standardGeneric('query'))
+setGeneric('query.raw', signature='obj', function(obj, s) standardGeneric('query.raw'))
 setGeneric('deleteAll', signature='obj', function(obj, confirm=TRUE) standardGeneric('deleteAll'))
 setGeneric('nodeCount', signature='obj', function(obj) standardGeneric('nodeCount'))
 setGeneric('edgeCount', signature='obj', function(obj, directed=TRUE) standardGeneric('edgeCount'))
@@ -67,6 +68,29 @@ neo4jService <- function(host, port, user, password, quiet=TRUE)
    .neo4jService(host=host, port=port, state=state, quiet=quiet)
 
 } # neo4jService, the constructor
+#------------------------------------------------------------------------------------------------------------------------
+#' send a query to the database, return it without interpretation or reformatting
+#'
+#' @description
+#' send a well-formed "cypher" query
+#'
+#' @rdname query.raw
+#'
+#' @param obj  new4jService object
+#' @param s  character string
+#'
+#' @export
+#'
+#' @return one or more data.frames
+#'
+
+setMethod('query.raw', 'neo4jService',
+
+     function(obj, s){
+         suppressMessages(x <- call_neo4j(s, obj@state$db))
+         return(x)
+         }) # query.raw
+
 #------------------------------------------------------------------------------------------------------------------------
 #' send a query to the database
 #'

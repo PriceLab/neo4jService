@@ -55,6 +55,14 @@ test_simpleQuery <- function()
 
 } # test_simpleQuery
 #------------------------------------------------------------------------------------------------------------------------
+test_query.raw <- function()
+{
+   message(sprintf("--- test_query.raw"))
+
+   query.raw(ns, "match (n) return count (n)")
+
+} # test_simpleQuery
+#------------------------------------------------------------------------------------------------------------------------
 test_runCypherFile <- function()
 {
    message(sprintf("--- test_runCypherFile"))
