@@ -1,5 +1,6 @@
 library(neo4jService)
 library(RUnit)
+library(RCyjs)
 #------------------------------------------------------------------------------------------------------------------------
 if(!exists("ns"))
    ns <- neo4jService("localhost", 7998, user="neo4j", password="hoopa")
@@ -135,76 +136,34 @@ test_getGraphDataFrames <- function()
 
 } # test_getGraphDataFrames
 #------------------------------------------------------------------------------------------------------------------------
-streamToDataFrames <- function(queryResult)
+startRCy <- function()
 {
-    browser()
-    stopifnot(all(c("nodes", "relationships", "properties", "data") %in% names(queryResult)))
-    node.count <- queryResult$nodes[1,1]
-    edge.count <- queryResult$relationships[1,1]
-    prop.count <- queryResult$properties[1,1]
-    data.raw <- queryResult$data[1,1]
-    lines.raw <- strsplit(data.raw, "\n")[[1]]
-    lines.tokens <- strsplit(lines.raw, ",")
+   rcy <- RCyjs()
 
-    column.names.raw <- lines.tokens[[1]]
-    column.names <- unlist(lapply(column.names.raw, function(s) gsub("\"", "", s)))
+   query <- "match (n{name:'Philip Seymour Hoffman'})-[r]->(m) return n, r, m"
+   tbls <- getNodeAndEdgeTables(ns, query)
 
-    unlist(lapply(lines.tokens[[2]], function(s) gsub("\"", "", s)))
-    #tbl.nodes <- data.frame("",
+   tbl.edges <- tbls$edges
+   colnames(tbl.edges)[grep("startNode", colnames(tbl.edges))] <- "source"
+   colnames(tbl.edges)[grep("endNode", colnames(tbl.edges))] <- "target"
+   colnames(tbl.edges)[grep("roles", colnames(tbl.edges))] <- "interaction"
+   tbl.nodes <- tbls$nodes
+   tbl.nodes$label <- "tmp"
+   movie.rows <- which(tbl.nodes$value == "Movie")
+   person.rows <- which(tbl.nodes$value == "Person")
+   tbl.nodes$label[movie.rows] <- tbl.nodes$title[movie.rows]
+   tbl.nodes$label[person.rows] <- tbl.nodes$name[person.rows]
 
-    xyz <- 99
-
-} # streamToDataFrames
-#------------------------------------------------------------------------------------------------------------------------
-test_streamToDataFrames <- function()
-{
-   message(sprintf("--- test_streamToDataFrames"))
-
-     # https://neo4j-rstats.github.io/user-guide/retrieve.html
-
-   qs <- paste('MATCH (tom:Person {name:"Tom Hanks"})-[a:ACTED_IN]->(m)<-[:ACTED_IN]-(coActors)',
-               'RETURN m AS acted,coActors.name')
-
-   res <- call_neo4j(ns@state$db, query, type = "graph")
-   unnest_nodes(res$nodes)
+   g.json <- toJSON(dataFramesToJSON(tbl.edges, tbl.nodes))
+   deleteGraph(rcy)
+   addGraph(rcy, g.json)
+   layout(rcy, "cola")
+   loadStyleFile(rcy, "style.json")
+   checkEquals(getNodeCount(rcy), 3)
+   checkEquals(getEdgeCount(rcy), 2)
 
 
-
-
-
-   q <- paste0("MATCH (person:Person)-[role:PLAYED]->(movie:Movie) ",
-               "WITH collect(DISTINCT person) AS people, collect(DISTINCT movie) AS movies, ",
-               "collect(role) AS roleRels ",
-               "CALL apoc.export.csv.data(people + movies, roleRels, null, {stream: true}) ",
-               "YIELD file, nodes, relationships, properties, data ",
-               "RETURN file, nodes, relationships, properties, data")
-   x <- query(ns, q)
-   #load("streamQueryResults.RData")
-
-   q <- paste0("MATCH (n)-[r]->(m) ",
-               "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
-               "collect(r) AS edges ",
-               "CALL apoc.export.csv.data(a + b, edges, null, {stream: true}) ",
-               "YIELD file,  nodes, relationships, properties, data ",
-               "RETURN file, nodes, relationships, properties, data")
-   x <- query(ns, q)
-
-   q <- paste0("MATCH (n)-[r]->(m) ",
-               "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
-               "collect(r) AS edges ",
-               "RETURN a, edges, b, properties, data")
-   query(ns, q)
-
-
-   q <- paste('MATCH (people:Person)-[relatedTo]-(:Movie {title: "Cloud Atlas"}) ',
-              'RETURN people.name, Type(relatedTo), relatedTo')
-  x <- call_neo4j(q, ns@state$db, type = "graph")
-  unnest_graph(x)
-
-
-   tbls <- streamToDataFrames(x)
-
-} # test_streamToDataFrames
+} # startCyjs
 #------------------------------------------------------------------------------------------------------------------------
 test_neighborhood <- function()
 {
@@ -240,5 +199,76 @@ test_shortestPath <- function()
 
 } # test_shortestPath
 #------------------------------------------------------------------------------------------------------------------------
+# streamToDataFrames <- function(queryResult)
+# {
+#     browser()
+#     stopifnot(all(c("nodes", "relationships", "properties", "data") %in% names(queryResult)))
+#     node.count <- queryResult$nodes[1,1]
+#     edge.count <- queryResult$relationships[1,1]
+#     prop.count <- queryResult$properties[1,1]
+#     data.raw <- queryResult$data[1,1]
+#     lines.raw <- strsplit(data.raw, "\n")[[1]]
+#     lines.tokens <- strsplit(lines.raw, ",")
+#
+#     column.names.raw <- lines.tokens[[1]]
+#     column.names <- unlist(lapply(column.names.raw, function(s) gsub("\"", "", s)))
+#
+#     unlist(lapply(lines.tokens[[2]], function(s) gsub("\"", "", s)))
+#     #tbl.nodes <- data.frame("",
+#
+#     xyz <- 99
+#
+# } # streamToDataFrames
+# #------------------------------------------------------------------------------------------------------------------------
+# test_streamToDataFrames <- function()
+# {
+#    message(sprintf("--- test_streamToDataFrames"))
+#
+#      # https://neo4j-rstats.github.io/user-guide/retrieve.html
+#
+#    qs <- paste('MATCH (tom:Person {name:"Tom Hanks"})-[a:ACTED_IN]->(m)<-[:ACTED_IN]-(coActors)',
+#                'RETURN m AS acted,coActors.name')
+#
+#    res <- call_neo4j(ns@state$db, query, type = "graph")
+#    unnest_nodes(res$nodes)
+#
+#
+#
+#
+#
+#    q <- paste0("MATCH (person:Person)-[role:PLAYED]->(movie:Movie) ",
+#                "WITH collect(DISTINCT person) AS people, collect(DISTINCT movie) AS movies, ",
+#                "collect(role) AS roleRels ",
+#                "CALL apoc.export.csv.data(people + movies, roleRels, null, {stream: true}) ",
+#                "YIELD file, nodes, relationships, properties, data ",
+#                "RETURN file, nodes, relationships, properties, data")
+#    x <- query(ns, q)
+#    #load("streamQueryResults.RData")
+#
+#    q <- paste0("MATCH (n)-[r]->(m) ",
+#                "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
+#                "collect(r) AS edges ",
+#                "CALL apoc.export.csv.data(a + b, edges, null, {stream: true}) ",
+#                "YIELD file,  nodes, relationships, properties, data ",
+#                "RETURN file, nodes, relationships, properties, data")
+#    x <- query(ns, q)
+#
+#    q <- paste0("MATCH (n)-[r]->(m) ",
+#                "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
+#                "collect(r) AS edges ",
+#                "RETURN a, edges, b, properties, data")
+#    query(ns, q)
+#
+#
+#    q <- paste('MATCH (people:Person)-[relatedTo]-(:Movie {title: "Cloud Atlas"}) ',
+#               'RETURN people.name, Type(relatedTo), relatedTo')
+#   x <- call_neo4j(q, ns@state$db, type = "graph")
+#   unnest_graph(x)
+#
+#
+#    tbls <- streamToDataFrames(x)
+#
+# } # test_streamToDataFrames
+# #------------------------------------------------------------------------------------------------------------------------
 if(!interactive())
    runTests()
