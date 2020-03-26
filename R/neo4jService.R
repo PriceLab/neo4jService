@@ -23,16 +23,17 @@
 setGeneric('query',     signature='obj', function(obj, s) standardGeneric('query'))
 setGeneric('query.raw', signature='obj', function(obj, s) standardGeneric('query.raw'))
 setGeneric('deleteAll', signature='obj', function(obj, confirm=TRUE) standardGeneric('deleteAll'))
-setGeneric('nodeCount', signature='obj', function(obj) standardGeneric('nodeCount'))
-setGeneric('edgeCount', signature='obj', function(obj, directed=TRUE) standardGeneric('edgeCount'))
+setGeneric('getNodeCount', signature='obj', function(obj) standardGeneric('getNodeCount'))
+setGeneric('getEdgeCount', signature='obj', function(obj, directed=TRUE) standardGeneric('getEdgeCount'))
 setGeneric('fullGraph', signature='obj', function(obj) standardGeneric('fullGraph'))
 setGeneric('getNodeLabels', signature='obj', function(obj) standardGeneric('getNodeLabels'))
 setGeneric('getNodeLabelDistribution', signature='obj', function(obj) standardGeneric('getNodeLabelDistribution'))
 setGeneric('getEdgeTypes', signature='obj', function(obj) standardGeneric('getEdgeTypes'))
 setGeneric('getEdgeTypeDistribution', signature='obj', function(obj) standardGeneric('getEdgeTypeDistribution'))
+setGeneric('getNodeAndEdgeTables', signature='obj', function(obj, query) standardGeneric('getNodeAndEdgeTables'))
 
-setGeneric('getNodeTable', signature='obj', function(obj) standardGeneric('getNodeTable'))
-setGeneric('getEdgeTable', signature='obj', function(obj, directed=TRUE) standardGeneric('getEdgeTable'))
+# setGeneric('getNodeTable', signature='obj', function(obj) standardGeneric('getNodeTable'))
+# setGeneric('getEdgeTable', signature='obj', function(obj, directed=TRUE) standardGeneric('getEdgeTable'))
 setGeneric('runCypherFile', signature='obj', function(obj, filename) standardGeneric('runCypherFile'))
 #------------------------------------------------------------------------------------------------------------------------
 #' create an object of class neo4jService, connect with user and password
@@ -151,7 +152,7 @@ setMethod('deleteAll', 'neo4jService',
 #' @description
 #' node count returned
 #'
-#' @rdname nodeCount
+#' @rdname getNodeCount
 #'
 #' @param obj  new4jService object
 #'
@@ -159,11 +160,11 @@ setMethod('deleteAll', 'neo4jService',
 #'
 #' @return the node count
 #'
-setMethod('nodeCount', 'neo4jService',
+setMethod('getNodeCount', 'neo4jService',
 
       function(obj){
          return(query(obj, "match (n) return count(n)")$value)
-         }) # nodeCount
+         }) # getNodeCount
 
 #------------------------------------------------------------------------------------------------------------------------
 #' how many edges in the current graph?
@@ -171,7 +172,7 @@ setMethod('nodeCount', 'neo4jService',
 #' @description
 #' edge count returned, twice as many when undirected
 #'
-#' @rdname edgeCount
+#' @rdname getEdgeCount
 #'
 #' @param obj  new4jService object
 #'
@@ -179,14 +180,14 @@ setMethod('nodeCount', 'neo4jService',
 #'
 #' @return the edge count
 #'
-setMethod('edgeCount', 'neo4jService',
+setMethod('getEdgeCount', 'neo4jService',
 
        function(obj, directed=TRUE) {
          queryString <- "match ()-[r]->() return count(r)"
          if(!directed)
              queryString <- "match ()-[r]-() return count(r)"
          return(query(obj, queryString)$value)
-         }) # edgeCount
+         }) # getEdgeCount
 
 #------------------------------------------------------------------------------------------------------------------------
 #' get a 'raw' query result, all edges
@@ -333,6 +334,32 @@ setMethod('getEdgeTypeDistribution', 'neo4jService',
           }) # getEdgeTypeDistribution
 
 #------------------------------------------------------------------------------------------------------------------------
+#' return a list of two data.frames, nodes and edges, suitable for rendering in RCyjs
+#'
+#' @description
+#' transform the neo4j data structures into a two base R data.frames
+#'
+#' @rdname getNodeAndEdgeTables
+#'
+#' @param obj  neo4jService object
+#' @param query character string, a valid neo4j query
+#'
+#' @export
+#'
+#' @return a list of two data.frames
+#'
+setMethod('getNodeAndEdgeTables', 'neo4jService',
+
+       function(obj, query){
+           x <- call_neo4j(query, obj@state$db, type="graph")
+           x.graph <- unnest_graph(x)
+           tbl.nodes <- as.data.frame(x.graph$nodes)
+           tbl.edges <- as.data.frame(x.graph$relationships)
+
+           list(nodes=tbl.nodes, edges=tbl.edges)
+           }) # getNodeAndEdgeTables
+
+#------------------------------------------------------------------------------------------------------------------------
 #' return a reusable data.frame listing nodes and their properties
 #'
 #' @description
@@ -346,85 +373,85 @@ setMethod('getEdgeTypeDistribution', 'neo4jService',
 #'
 #' @return a data.frame
 #'
-setMethod('getNodeTable', 'neo4jService',
-
-     function(obj){
-        # add id property to every node if not already present
-        if(nrow(query(obj, "MATCH (n) return(n.id)")) == 0){
-          query(obj, "match (n) set n.id = id(n)")
-          }
-       labels <- getNodeLabels(obj)
-       build.label.table <- function(label){
-         tbl <- query(obj, sprintf("match (n%s) return n", label))
-         tbl$label <- label
-         tbl
-         }
-
-       x <- lapply(labels, build.label.table)
-
-       column.names <- sort(unique(unlist(lapply(x, colnames))))
-       tbl <- setNames(data.frame(matrix(ncol=length(column.names), nrow=0)), column.names)
-       for(tbl.sub in x)
-          tbl <- merge(tbl, tbl.sub, all.x=TRUE, all.y=TRUE)
-
-       column.names <- colnames(tbl)  # may have changed due to the merge
-          # put the table in the right column order, starting with id and label
-       id.index <- grep("^id$", column.names)
-       label.index <- grep("^label$", column.names)
-       other.indices <- seq_len(length(column.names))[-c(id.index, label.index)]
-       other.colnames <- sort(column.names[other.indices])
-       preferred.colnames <- c("id", "label", other.colnames)
-       tbl <- tbl[, preferred.colnames]
-       preferred.row.order <- order(tbl$id)
-       tbl <- tbl[preferred.row.order,]
-       rownames(tbl) <- NULL
-       tbl
-       }) # getNodeTable
-
-#------------------------------------------------------------------------------------------------------------------------
-#' return a reusable data.frame listing edges and their properties
-#'
-#' @description
-#' edges and their properties
-#'
-#' @rdname getEdgeTable
-#'
-#' @param obj  new4jService object
-#' @param directed  logical, default TRUE
-#'
-#' @export
-#'
-#' @return a data.frame
-#'
-setMethod('getEdgeTable', 'neo4jService',
-
-       function(obj, directed=TRUE){
-           x <- query(obj, "match (m)-[r]-(n) return m, n, r, type(r)")
-           attribute.names <- colnames(x$r)
-
-           tbl <- data.frame(a=x$m$id, b=x$n$id, type=x$type$value, stringsAsFactors=FALSE)
-           browser()
-           for(eda in attribute.names){
-              tbl <- cbind(tbl, x$r[, eda])
-              }
-
-           sigs <- vector("character", nrow(tbl))
-
-           if(directed){
-              browser()
-              for(r in seq_len(nrow(tbl))){
-                 ordered.nodes <- sort(c(tbl[r, "a"], tbl[r, "b"]))
-                 sigs[r] <- sprintf("%s:%s:%s", tbl[r, "type"], ordered.nodes[1], ordered.nodes[2])
-                 } # for r
-              browser()
-              deleters <- which(duplicated(sigs))
-              if(length(deleters) > 0)
-                  tbl <- tbl[-deleters,]
-              } # if directed
-
-           colnames(tbl)[1:3] <- c("source", "target", "interaction") # required by rcyjs
-           return(tbl)
-           }) # getEdgeTable
-
+# setMethod('getNodeTable', 'neo4jService',
+#
+#      function(obj){
+#         # add id property to every node if not already present
+#         if(nrow(query(obj, "MATCH (n) return(n.id)")) == 0){
+#           query(obj, "match (n) set n.id = id(n)")
+#           }
+#        labels <- getNodeLabels(obj)
+#        build.label.table <- function(label){
+#          tbl <- query(obj, sprintf("match (n%s) return n", label))
+#          tbl$label <- label
+#          tbl
+#          }
+#
+#        x <- lapply(labels, build.label.table)
+#
+#        column.names <- sort(unique(unlist(lapply(x, colnames))))
+#        tbl <- setNames(data.frame(matrix(ncol=length(column.names), nrow=0)), column.names)
+#        for(tbl.sub in x)
+#           tbl <- merge(tbl, tbl.sub, all.x=TRUE, all.y=TRUE)
+#
+#        column.names <- colnames(tbl)  # may have changed due to the merge
+#           # put the table in the right column order, starting with id and label
+#        id.index <- grep("^id$", column.names)
+#        label.index <- grep("^label$", column.names)
+#        other.indices <- seq_len(length(column.names))[-c(id.index, label.index)]
+#        other.colnames <- sort(column.names[other.indices])
+#        preferred.colnames <- c("id", "label", other.colnames)
+#        tbl <- tbl[, preferred.colnames]
+#        preferred.row.order <- order(tbl$id)
+#        tbl <- tbl[preferred.row.order,]
+#        rownames(tbl) <- NULL
+#        tbl
+#        }) # getNodeTable
+#
+# #------------------------------------------------------------------------------------------------------------------------
+# #' return a reusable data.frame listing edges and their properties
+# #'
+# #' @description
+# #' edges and their properties
+# #'
+# #' @rdname getEdgeTable
+# #'
+# #' @param obj  new4jService object
+# #' @param directed  logical, default TRUE
+# #'
+# #' @export
+# #'
+# #' @return a data.frame
+# #'
+# setMethod('getEdgeTable', 'neo4jService',
+#
+#        function(obj, directed=TRUE){
+#            x <- query(obj, "match (m)-[r]-(n) return m, n, r, type(r)")
+#            attribute.names <- colnames(x$r)
+#
+#            tbl <- data.frame(a=x$m$id, b=x$n$id, type=x$type$value, stringsAsFactors=FALSE)
+#            browser()
+#            for(eda in attribute.names){
+#               tbl <- cbind(tbl, x$r[, eda])
+#               }
+#
+#            sigs <- vector("character", nrow(tbl))
+#
+#            if(directed){
+#               browser()
+#               for(r in seq_len(nrow(tbl))){
+#                  ordered.nodes <- sort(c(tbl[r, "a"], tbl[r, "b"]))
+#                  sigs[r] <- sprintf("%s:%s:%s", tbl[r, "type"], ordered.nodes[1], ordered.nodes[2])
+#                  } # for r
+#               browser()
+#               deleters <- which(duplicated(sigs))
+#               if(length(deleters) > 0)
+#                   tbl <- tbl[-deleters,]
+#               } # if directed
+#
+#            colnames(tbl)[1:3] <- c("source", "target", "interaction") # required by rcyjs
+#            return(tbl)
+#            }) # getEdgeTable
+#
 #------------------------------------------------------------------------------------------------------------------------
 
