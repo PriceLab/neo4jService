@@ -1,33 +1,25 @@
 library(neo4jService)
 library(RUnit)
 #------------------------------------------------------------------------------------------------------------------------
-# make sure that a scratch neo4j database is up and running on the port we want:
-# ~/github/neo4jService/inst/extdata/runDocker.sh
-# #!/bin/bash
-#
-# the data directory must contain two neo4j-specific subdirectories: databases and dbms
-# when used here, docker apparently adds attributes to that data driectory
-# i had thought this was a problem, but it is not
-#
-# csv files to import must be in <neo4j-home>/import
-# where the docker image has NEO4J_HOME
-#   NEO4J_HOME=/var/lib/neo4j
-#
-# NAME=neo4jservicetests
-#
-# docker run --name=$NAME \
-#     --detach \
-#     --publish=7499:7474 --publish=7699:7687 \
-#     --volume=/Users/paul/github/neo4jService/inst/extdata/data:/data \
-#     --volume=/Users/paul/github/neo4jService/inst/extdata/logs:/logs \
-#     --user=neo4j \
-#     --env NEO4J_AUTH=neo4j/hoopa \
-#     --env 'NEO4JLABS_PLUGINS=["apoc", "graph-algorithms"]' \
-#     --env NEO4J_dbms_security_procedures_unrestricted=apoc.\\\*,algo.\\\* \
-#     neo4j:3.5.12
+# preconditions:  that the a fully-function scratch database is up and running on public port 7900
+# do this:
+#   1) cd ~/github/neo4jService/instances/scratch
+#   2) make   # with default (no) target reports the available targets
+#      stop
+#      start
+#      bash
+#      cypher
+#      nodeCount
+#      fill.local
+#      delete.db
+#      ui
+#   3) make nodeCount # should return 0
 #------------------------------------------------------------------------------------------------------------------------
 if(!exists("ns"))
-   ns <- neo4jService("localhost", 7499, user="neo4j", password="hoopa")
+   ns <- neo4jService("localhost", 7900, user="neo4j", password="hoopa")
+
+query(ns, "match (n) detach delete n")
+stopifnot(getNodeCount(ns) == 0)
 
 #------------------------------------------------------------------------------------------------------------------------
 runTests <- function()
@@ -35,7 +27,7 @@ runTests <- function()
    test_constructor()
    test_simpleQuery()
    test_runCypherFile()
-   test_nodeAndEdgeTables()
+   test_getNodeAndEdgeTables()
 
 } # runTests
 #------------------------------------------------------------------------------------------------------------------------
@@ -67,32 +59,68 @@ test_runCypherFile <- function()
 {
    message(sprintf("--- test_runCypherFile"))
 
-   deleteAll(ns)
-   checkEquals(nodeCount(ns), 0)
-   checkEquals(edgeCount(ns), 0)
+   deleteAll(ns, confirm=FALSE)
+   checkEquals(getNodeCount(ns), 0)
+   checkEquals(getEdgeCount(ns), 0)
 
    cypher.file <- "~/github/neo4jService/inst/extdata/import/createTwoActors.cypher"
    runCypherFile(ns, cypher.file)
 
-   checkEquals(nodeCount(ns), 4)
-   checkEquals(edgeCount(ns), 3)
+   checkEquals(getNodeCount(ns), 4)
+   checkEquals(getEdgeCount(ns), 3)
 
 } # test_runCypherFile
 #------------------------------------------------------------------------------------------------------------------------
-test_nodeAndEdgeTables <- function()
+test_getNodeAndEdgeTables <- function()
 {
-   message(sprintf("--- test_nodeAndEdgeTables"))
-   deleteAll(ns, confirm=FALSE)
-   checkEquals(nodeCount(ns), 0)
-   checkEquals(edgeCount(ns), 0)
+   message(sprintf("--- test_getNodeAndEdgeTables"))
 
-   cypher.file <- "~/github/neo4jService/inst/extdata/import/createTwoActors.cypher"
+   deleteAll(ns, confirm=FALSE)
+   checkEquals(getNodeCount(ns), 0)
+   checkEquals(getEdgeCount(ns), 0)
+
+   cypher.file <- "~/github/neo4jService/instances/scratch/import/createTwoActors.cypher"
    runCypherFile(ns, cypher.file)
 
-   tbl.nodes <- getNodeTable(ns)
-   tbl.edges <- getEdgeTable(ns)
-   checkEquals(dim(tbl.nodes), c(4, 6))
-   checkEquals(dim(tbl.edges), c(3, 4))
+     #------------------------------------------------------------
+     #  first test one edge after extracting the whole graph
+     #------------------------------------------------------------
+
+   query <- "match (n)-[r]->(m) return n, r, m"  # the whole graph
+   x <- getNodeAndEdgeTables(ns, query)
+   checkEquals(sort(names(x)), c("edges", "nodes"))
+
+   tbl.nodes <- x$nodes
+   tbl.edges <- x$edges
+
+   checkEquals(dim(tbl.nodes), c(7, 7))
+   checkEquals(dim(tbl.edges), c(3, 6))
+
+      # check Hanks in Forrest Gump: source->target in correct order?
+   tomHanks <- unique(subset(tbl.nodes, name=="Tom Hanks")$id)
+   forrestGump <- unique(subset(tbl.nodes, title=="Forrest Gump" & value=="Movie")$id)
+   checkEquals(subset(tbl.edges, startNode==tomHanks)$type, "ACTED_IN")
+   checkEquals(subset(tbl.edges, startNode==tomHanks)$endNode, forrestGump)
+
+     #------------------------------------------------------------
+     # now extract one edge only
+     #------------------------------------------------------------
+
+   query <- "match (n{name: 'Tom Hanks')-[r]->(m) return n, r, m"  # the whole graph
+   x <- getNodeAndEdgeTables(ns, query)
+   checkEquals(sort(names(x)), c("edges", "nodes"))
+
+   tbl.nodes <- x$nodes
+   tbl.edges <- x$edges
+
+   source.id <- tbl.edges$startNode[1]
+   target.id <- tbl.edges$endNode[1]
+
+   source.name <- subset(tbl.nodes, id==source.id)$name[1]
+   target.name <- subset(tbl.nodes, id==target.id)$title[1]
+
+   checkEquals(source.name, "Tom Hanks")
+   checkEquals(target.name, "Forrest Gump")
 
 } # test_nodeAndEdgeTables
 #------------------------------------------------------------------------------------------------------------------------

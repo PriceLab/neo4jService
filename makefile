@@ -12,5 +12,6 @@ check:
 	(cd ..; R CMD check `ls -t neo4jService) | head -1`)
 
 test:
-	for x in inst/unitTests/test_*.R; do echo $$x; R -f $$x; done
+	R -f inst/unitTests/test_neo4jService.R 
+	#for x in inst/unitTests/test_*.R; do echo $$x; R -f $$x; done
 

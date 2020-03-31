@@ -355,7 +355,6 @@ setMethod('getNodeAndEdgeTables', 'neo4jService',
            x.graph <- unnest_graph(x)
            tbl.nodes <- as.data.frame(x.graph$nodes)
            tbl.edges <- as.data.frame(x.graph$relationships)
-
            list(nodes=tbl.nodes, edges=tbl.edges)
            }) # getNodeAndEdgeTables
 

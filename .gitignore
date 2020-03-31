@@ -1,9 +1,15 @@
 instances/movies/data/databases/store_lock
 instances/movies/data/databases/graph.db
 instances/movies/logs
+
 instances/northwind/data/databases/graph.db
 instances/northwind/data/databases/store_lock
 instances/northwind/data/dbms/*
+
+instances/scratch/data/databases/graph.db
+instances/scratch/data/databases/store_lock
+instances/scratch/data/dbms/*
+
 inst/extdata/data/databases/graph.db/*
 
 inst/extdata/*  # for now
