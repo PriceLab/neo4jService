@@ -1,7 +1,7 @@
 CONTAINER=movies_neo4j
 
 default:
-	@echo targets: stop start bash
+	@echo targets: stop start bash cypher nodeCount fill.local delete.db ui
 
 stop:
 	- docker stop $(CONTAINER); docker rm movies_neo4j

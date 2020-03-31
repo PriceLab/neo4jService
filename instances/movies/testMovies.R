@@ -10,7 +10,8 @@ runTests <- function()
 {
    test_constructor()
    test_nodeAndEdgeCounts()
-   #test_nodeAndEdgeTables()
+   test_nodeAndEdgeTables()
+   test_getGraphDataFrames()
 
 } # runTests
 #------------------------------------------------------------------------------------------------------------------------
@@ -25,8 +26,8 @@ test_nodeAndEdgeCounts <- function()
 {
    message(sprintf("--- test_nodeAndEdgeCounts"))
 
-   checkEquals(getNodeCount(ns), 171)
-   checkEquals(getEdgeCount(ns), 253)
+   checkEquals(neo4jService::getNodeCount(ns), 171)
+   checkEquals(neo4jService::getEdgeCount(ns), 253)
 
    expectedLabels <- c(":Movie", ":Person")
    expectedTypes <- c("ACTED_IN", "DIRECTED", "FOLLOWS", "PRODUCED", "REVIEWED", "WROTE")
@@ -47,6 +48,7 @@ test_nodeAndEdgeCounts <- function()
 test_nodeAndEdgeTables <- function()
 {
    message(sprintf("--- test_nodeAndEdgeTables"))
+
 
    qs <- paste0("CALL apoc.export.csv.all(null, {stream:true}) ",
                 "YIELD file, nodes, relationships, properties, data ",
@@ -116,23 +118,27 @@ test_getGraphDataFrames <- function()
     tbl.edges <- tbls$edges
     tbl.nodes <- tbls$nodes
 
-    checkTrue(all(c(tbl.edges$startNode, tbl.edges$endNode) %in% tbl.nodes$id))
-    checkEquals(colnames(tbl.nodes), c("id", "value", "born", "name", "tagline", "title", "released"))
-    checkEquals(colnames(tbl.edges), c("id", "type", "startNode", "endNode", "roles"))
+    colnames(tbl.edges)[grep("startNode", colnames(tbl.edges))] <- "source"
+    colnames(tbl.edges)[grep("endNode", colnames(tbl.edges))] <- "target"
+    colnames(tbl.edges)[grep("type", colnames(tbl.edges))] <- "interaction"
+    tbl.nodes$label <- "tmp"
+    movie.rows <- which(tbl.nodes$value == "Movie")
+    person.rows <- which(tbl.nodes$value == "Person")
+    tbl.nodes$label[movie.rows] <- tbl.nodes$title[movie.rows]
+    tbl.nodes$label[person.rows] <- tbl.nodes$name[person.rows]
 
-    query <- "match (n{name:'Philip Seymour Hoffman'}) return n"
-    tbls <- getNodeAndEdgeTables(ns, query)
-    checkEquals(nrow(tbls$nodes), 1)
-    checkEquals(nrow(tbls$edges), 0)
+    x <- fromJSON(dataFramesToJSON(tbl.edges, tbl.nodes))
+    tbl.e <- x$elements$edges
+    tbl.n <- x$elements$nodes
 
-    query <- "match (m)-[r]-(n) return r"
-    tbls <- getNodeAndEdgeTables(ns, query)
+    checkEquals(as.character(tbl.e[1,1])[1:4], c("164-(ACTED_IN)-175", "164", "175", "ACTED_IN"))
+    checkEquals(as.character(tbl.e[2,1])[1:4], c("164-(ACTED_IN)-163", "164", "163", "ACTED_IN"))
 
-    checkEquals(nrow(tbls$nodes), getNodeCount(ns))
-    checkTrue(nrow(tbls$edges) >= getEdgeCount(ns))   # 273 vs 253, don't yet know why
+      # make sure that 164 is Hoffman, 176 and 163 are movies
 
-    checkEquals(dim(tbls$nodes), c(171, 7))
-    checkEquals(dim(tbls$edges), c(273, 8))
+    checkEquals(as.character(tbl.n[2,1])[1:4], c("164", "Person", "1967", "Philip Seymour Hoffman"))
+    checkEquals(as.character(tbl.n[1,1])[c(1,2,8)], c("163", "Movie", "Twister"))
+    checkEquals(as.character(tbl.n[3,1])[c(1,2,8)], c("175", "Movie", "Charlie Wilson's War"))
 
 } # test_getGraphDataFrames
 #------------------------------------------------------------------------------------------------------------------------
@@ -146,7 +152,7 @@ startRCy <- function()
    tbl.edges <- tbls$edges
    colnames(tbl.edges)[grep("startNode", colnames(tbl.edges))] <- "source"
    colnames(tbl.edges)[grep("endNode", colnames(tbl.edges))] <- "target"
-   colnames(tbl.edges)[grep("roles", colnames(tbl.edges))] <- "interaction"
+   colnames(tbl.edges)[grep("type", colnames(tbl.edges))] <- "interaction"
    tbl.nodes <- tbls$nodes
    tbl.nodes$label <- "tmp"
    movie.rows <- which(tbl.nodes$value == "Movie")
@@ -159,9 +165,8 @@ startRCy <- function()
    addGraph(rcy, g.json)
    layout(rcy, "cola")
    loadStyleFile(rcy, "style.json")
-   checkEquals(getNodeCount(rcy), 3)
-   checkEquals(getEdgeCount(rcy), 2)
-
+   checkEquals(RCyjs::getNodeCount(rcy), 3)
+   checkEquals(RCyjs::getEdgeCount(rcy), 2)
 
 } # startCyjs
 #------------------------------------------------------------------------------------------------------------------------
