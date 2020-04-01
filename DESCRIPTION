@@ -1,7 +1,7 @@
 Package: neo4jService
 Title: neo4jService
-Date: 2020-03-31
-Version: 1.0.6
+Date: 2020-04-01
+Version: 1.0.7
 Author: Paul Shannon
 Maintainer: Paul Shannon <pshannon@systemsbiology.org>
 Description: a microservice for queries to biomedical knowledge graphs in Neo4J

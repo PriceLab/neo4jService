@@ -31,10 +31,8 @@ setGeneric('getNodeLabelDistribution', signature='obj', function(obj) standardGe
 setGeneric('getEdgeTypes', signature='obj', function(obj) standardGeneric('getEdgeTypes'))
 setGeneric('getEdgeTypeDistribution', signature='obj', function(obj) standardGeneric('getEdgeTypeDistribution'))
 setGeneric('getNodeAndEdgeTables', signature='obj', function(obj, query) standardGeneric('getNodeAndEdgeTables'))
-
-# setGeneric('getNodeTable', signature='obj', function(obj) standardGeneric('getNodeTable'))
-# setGeneric('getEdgeTable', signature='obj', function(obj, directed=TRUE) standardGeneric('getEdgeTable'))
 setGeneric('runCypherFile', signature='obj', function(obj, filename) standardGeneric('runCypherFile'))
+setGeneric('shortestPath', signature='obj', function(obj, sourceNode, targetNode) standardGeneric('shortestPath'))
 #------------------------------------------------------------------------------------------------------------------------
 #' create an object of class neo4jService, connect with user and password
 #'
@@ -357,6 +355,39 @@ setMethod('getNodeAndEdgeTables', 'neo4jService',
            tbl.edges <- as.data.frame(x.graph$relationships)
            list(nodes=tbl.nodes, edges=tbl.edges)
            }) # getNodeAndEdgeTables
+
+#------------------------------------------------------------------------------------------------------------------------
+#' dijkstra's shortest path
+#'
+#' @description
+#' return the shortest path between two nodes
+#'
+#' @rdname shortestPath
+#'
+#' @param obj  new4jService object
+#' @param sourceNode  character string
+#' @param targetNode  character string
+#'
+#' @export
+#'
+#' @example
+#'    sourceNode <- "Person{name:'Tom Hanks'}"
+#'    targetNode <- "Movie{title:'Forrest Gump'}"
+#'    tbl.sp <- shortestPath(ns, sourceNode, targetNode)
+#'
+#' @return a list
+#'
+setMethod('shortestPath', 'neo4jService',
+
+     function(obj, sourceNode, targetNode){
+         sourceTargetString <- sprintf("(source:%s), (destination:%s)", sourceNode, targetNode)
+         s <- paste(sprintf("MATCH %s", sourceTargetString),
+                    "CALL algo.shortestPath.stream(source, destination, NULL) YIELD nodeId, cost",
+                    "RETURN algo.getNodeById(nodeId)")
+         printf("sp query: %s", s)
+         x <- query(ns, s)
+         x
+         })
 
 #------------------------------------------------------------------------------------------------------------------------
 #' return a reusable data.frame listing nodes and their properties

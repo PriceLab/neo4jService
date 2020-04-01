@@ -61,7 +61,7 @@ test_nodeAndEdgeCounts <- function()
 #------------------------------------------------------------------------------------------------------------------------
 # ROR2 and GREB1 are mentioned prominently in paper about platinum sensitive & resistant ovarian tumors
 # https://www.ncbi.nlm.nih.gov/pubmed/30056367
-explore_ROR2 <- function()
+explore_ROR2_GREB1 <- function()
 {
    query <- "match(n{name:'ROR2'})-[r]->(m{source:'Entrez Gene'}) return n,r,m"
    x <- query(ns, query)
@@ -89,6 +89,39 @@ explore_ROR2 <- function()
    loadStyleFile(rcy, "style.json")
    checkEquals(RCyjs::getNodeCount(rcy), 3)
    checkEquals(RCyjs::getEdgeCount(rcy), 2)
+
+   from <- "ROR2"
+   to   <- "UBC"
+   to   <- "GREB1"
+
+   s <- paste(sprintf("MATCH (source:Gene{name: '%s'}), (destination:Gene{name: '%s'})", from, to),
+              "CALL algo.shortestPath.stream(source, destination, NULL) YIELD nodeId, cost",
+              "RETURN algo.getNodeById(nodeId).name AS gene, cost")
+
+   s <- paste(sprintf("MATCH (source:Gene{name: '%s'}), (destination:Gene{name: '%s'})", from, to),
+              "CALL algo.shortestPath.astar.stream(source,",
+              "destination, 'distance', 'latitude', 'longitude')",
+              "YIELD nodeId, cost RETURN algo.getNodeById(nodeId).name AS gene, cost")
+
+   x <- query(ns, s)
+   clearSelection(rcy)
+   cities <- x$place$value
+   selectNodes(rcy, cities)
+
+   getDistance <- function(from, to){
+       stopifnot(from != to)
+       from.rows <- c(grep(from, tbl.edges$target), grep(from, tbl.edges$source))
+       to.rows   <- c(grep(to, tbl.edges$target), grep(to, tbl.edges$source))
+       row <- intersect(from.rows, to.rows)[1]
+       return(tbl.edges$distance[row])
+       }
+
+   max <- length(cities) - 1
+   total.distance <- 0
+   for(i in 1:max)
+      total.distance <- total.distance + getDistance(cities[i], cities[i+1])
+
+   printf("total distance: %d", total.distance)
 
 
 
