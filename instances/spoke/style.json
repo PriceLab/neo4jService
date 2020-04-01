@@ -1,0 +1,29 @@
+vizmap = [{
+  "selector": "node",
+    "style": {
+       "shape": "ellipse",
+       "text-valign":"center",
+       "text-halign":"center",
+       "font-size": "8px",
+       "height": 40,
+       "width": 40,
+       "background-color": "white",
+       "border-width": "1px",
+       "border-color": "red",
+       "label": "data(label)"
+       }},
+
+    {"selector": "node[value='Person']", style: {
+       "shape": "rectangle"
+       }}, 
+
+    {"selector": "edge",
+     "style": {
+        "line-style": "solid",
+        "width": "1px",
+	"curve-style": "bezier",
+	"target-arrow-shape": "triangle",
+	"target-arrow-color": "darkgreen",
+	"line-color": "black"
+	}},
+   ];
