@@ -90,39 +90,37 @@ explore_ROR2_GREB1 <- function()
    checkEquals(RCyjs::getNodeCount(rcy), 3)
    checkEquals(RCyjs::getEdgeCount(rcy), 2)
 
-   from <- "ROR2"
-   to   <- "UBC"
-   to   <- "GREB1"
+   from <- "Gene{name: 'ROR2'}"
+   to   <- "Gene{name: 'GREB1'}"
 
-   s <- paste(sprintf("MATCH (source:Gene{name: '%s'}), (destination:Gene{name: '%s'})", from, to),
-              "CALL algo.shortestPath.stream(source, destination, NULL) YIELD nodeId, cost",
-              "RETURN algo.getNodeById(nodeId).name AS gene, cost")
+   sp <- shortestPath(ns, from, to)
+   checkEquals(sp$name, c("ROR2", "Ectoderm Differentiation", "GREB1"))
 
-   s <- paste(sprintf("MATCH (source:Gene{name: '%s'}), (destination:Gene{name: '%s'})", from, to),
-              "CALL algo.shortestPath.astar.stream(source,",
-              "destination, 'distance', 'latitude', 'longitude')",
-              "YIELD nodeId, cost RETURN algo.getNodeById(nodeId).name AS gene, cost")
+   from <- "Gene{name: 'ROR2'}"
+   to   <- "Gene{name: 'GREB1'}"
 
-   x <- query(ns, s)
-   clearSelection(rcy)
-   cities <- x$place$value
-   selectNodes(rcy, cities)
+   f.up <- "~/github/nooa/explorations/pathway-enrichment/staff-upRegulated.tsv"
+   up.5 <- head(read.table(f.up, sep="\t", as.is=TRUE, header=TRUE))$Gene.Name
 
-   getDistance <- function(from, to){
-       stopifnot(from != to)
-       from.rows <- c(grep(from, tbl.edges$target), grep(from, tbl.edges$source))
-       to.rows   <- c(grep(to, tbl.edges$target), grep(to, tbl.edges$source))
-       row <- intersect(from.rows, to.rows)[1]
-       return(tbl.edges$distance[row])
-       }
+   f.dn <- "~/github/nooa/explorations/pathway-enrichment/staff-downRegulated.tsv"
+   dn.5 <- head(read.table(f.dn, sep="\t", as.is=TRUE, header=TRUE))$Gene.Name
 
-   max <- length(cities) - 1
-   total.distance <- 0
-   for(i in 1:max)
-      total.distance <- total.distance + getDistance(cities[i], cities[i+1])
+   for(i in 1:6){
+       for(j in 1:6){
+          sourceNode <- sprintf("Gene{name: '%s'}", up.5[i])
+          targetNode <- sprintf("Gene{name: '%s'}", dn.5[j])
+          printf("====== %s -> %s", sourceNode, targetNode)
+          sp <- shortestPath(ns, sourceNode, targetNode)
+          print(sp)
+          }}
 
-   printf("total distance: %d", total.distance)
-
+   one result, for example
+      # sp query: MATCH (source:Gene{name: 'LGSN'}), (destination:Gene{name: 'BNC1'}) CALL algo.shortestPath.stream(source, destination, NULL) YIELD nodeId, cost RETURN algo.getNodeById(nodeId)
+      #   license identifier chromosome      name                                            description           source                                   url mesh_list
+      # 1 CC0 1.0      51557          6      LGSN lengsin, lens protein with glutamine synthetase domain      Entrez Gene http://identifiers.org/ncbigene/51557      NULL
+      # 2    <NA>   DOID:305       <NA> carcinoma                                                   <NA> Disease Ontology                                  <NA>   D009375
+      # 3    <NA>   DOID:305       <NA> carcinoma                                                   <NA> Disease Ontology                                  <NA>   D002277
+      # 4 CC0 1.0        646         15      BNC1                                           basonuclin 1      Entrez Gene   http://identifiers.org/ncbigene/646      NULL
 
 
 
