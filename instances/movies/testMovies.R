@@ -10,8 +10,9 @@ runTests <- function()
 {
    test_constructor()
    test_nodeAndEdgeCounts()
-   test_nodeAndEdgeTables()
+   #test_nodeAndEdgeTables()
    test_getGraphDataFrames()
+   #test_triangles()
 
 } # runTests
 #------------------------------------------------------------------------------------------------------------------------
@@ -91,7 +92,6 @@ test_nodeAndEdgeTables <- function()
                  "YIELD file, nodes, relationships, properties, data ",
                  "RETURN file, nodes, relationships, properties, data")
 
-
    x2 <- query(ns, qs2)
    x2[2:4]
    # nodes: 5
@@ -111,12 +111,29 @@ test_getGraphDataFrames <- function()
 {
     message(sprintf("--- test_getGraphDataFrames"))
 
+     #-----------------------------
+     # first, the whole database
+     #-----------------------------
+
+    query <- "match (n)-[r]->(m) return n, r, m"
+    tbls <- getNodeAndEdgeTables(ns, query)
+    checkEquals(dim(tbls$nodes), c(171, 9))
+    checkEquals(dim(tbls$edges), c(273, 8))
+
+     #-----------------------------
+     # now, just Hoffman films
+     #-----------------------------
+
     query <- "match (n{name:'Philip Seymour Hoffman'})-[r]->(m) return n, r, m"
     tbls <- getNodeAndEdgeTables(ns, query)
     checkEquals(names(tbls), c("nodes", "edges"))
 
     tbl.edges <- tbls$edges
     tbl.nodes <- tbls$nodes
+
+     #--------------------------------------------
+     # manipulate colums names, ready for RCyjs
+     #--------------------------------------------
 
     colnames(tbl.edges)[grep("startNode", colnames(tbl.edges))] <- "source"
     colnames(tbl.edges)[grep("endNode", colnames(tbl.edges))] <- "target"
@@ -134,19 +151,57 @@ test_getGraphDataFrames <- function()
     checkEquals(as.character(tbl.e[1,1])[1:4], c("164-(ACTED_IN)-175", "164", "175", "ACTED_IN"))
     checkEquals(as.character(tbl.e[2,1])[1:4], c("164-(ACTED_IN)-163", "164", "163", "ACTED_IN"))
 
+      #--------------------------------------------------------------------
       # make sure that 164 is Hoffman, 176 and 163 are movies
+      # if the graph database has been used for algorithms (triangles,
+      # shortest paths) then (alas, because these calculations change
+      # graph state, allow for unexpected columns in these following tests
+      #--------------------------------------------------------------------
 
-    checkEquals(as.character(tbl.n[2,1])[1:4], c("164", "Person", "1967", "Philip Seymour Hoffman"))
-    checkEquals(as.character(tbl.n[1,1])[c(1,2,8)], c("163", "Movie", "Twister"))
-    checkEquals(as.character(tbl.n[3,1])[c(1,2,8)], c("175", "Movie", "Charlie Wilson's War"))
+    checkTrue(all(c("164", "Person", "1967", "Philip Seymour Hoffman") %in% as.character(tbl.n[2,1])))
+    checkTrue(all(c("163", "Movie", "Twister") %in% as.character(tbl.n[1,1])))
+    checkTrue(all(c("175", "Movie", "Charlie Wilson's War") %in% as.character(tbl.n[3,1])))
 
 } # test_getGraphDataFrames
+#------------------------------------------------------------------------------------------------------------------------
+test_neighborhood <- function()
+{
+   message(sprintf("--- test_neighborhood"))
+
+   query <- 'match (n {name: "LUC7L3"})-[r]->(m) return n, r, m'
+   x <- query(ns, query)
+   x.tbl <- lapply(x, as.data.frame)
+
+} # test_neighborhood
+#------------------------------------------------------------------------------------------------------------------------
+test_shortestPath <- function()
+{
+   message(sprintf("--- test_shortestPath"))
+   labels <- getNodeLabels(ns)    # :Movie :Person
+   from <- "Tom Hanks"
+   to   <- "Geena Davis"
+     # make sure the nodes can be found
+     # query(ns, "match (n:Person) where n.name in ['Geena Davis', 'Tom Hanks'] return n")
+     # query(ns, "match (n:Person{name:'Geena Davis'}) return n")
+     # query(ns, "match (a:Person{name:'Geena Davis'}), (b:Person{name:'Tom Hanks'}) return a,b")
+     # query(ns, sprintf("match (a:Person{name:'%s'}), (b:Person{name:'%s'}) return a,b",
+     #                "Geena Davis", "Tom Hanks"))
+
+     # learn the details (signature & results) of algo.shortestPath.stream
+     #    query(ns, "CALL dbms.procedures() YIELD name, signature WHERE name='algo.shortestPath.stream' RETURN signature")
+
+   s2 <- sprintf("match (a:Person{name:'%s'}), (b:Person{name: '%s'}) CALL algo.shortestPath.stream(a, b) YIELD nodeId RETURN nodeId", from, to)
+
+   clearSelection(rcy)
+   selectNodes(rcy, query(ns, s2)$value)
+
+} # test_shortestPath
 #------------------------------------------------------------------------------------------------------------------------
 startRCy <- function()
 {
    rcy <- RCyjs()
 
-   query <- "match (n{name:'Philip Seymour Hoffman'})-[r]->(m) return n, r, m"
+   query <- "match (n)-[r]->(m) return n, r, m"
    tbls <- getNodeAndEdgeTables(ns, query)
 
    tbl.edges <- tbls$edges
@@ -163,117 +218,14 @@ startRCy <- function()
    g.json <- toJSON(dataFramesToJSON(tbl.edges, tbl.nodes))
    deleteGraph(rcy)
    addGraph(rcy, g.json)
-   layout(rcy, "cola")
    loadStyleFile(rcy, "style.json")
-   checkEquals(RCyjs::getNodeCount(rcy), 3)
-   checkEquals(RCyjs::getEdgeCount(rcy), 2)
+   checkEquals(RCyjs::getNodeCount(rcy), 171)
+   checkEquals(RCyjs::getEdgeCount(rcy), 253)
+   layout(rcy, "cola")
+
+   rcy
 
 } # startCyjs
 #------------------------------------------------------------------------------------------------------------------------
-test_neighborhood <- function()
-{
-   message(sprintf("--- test_neighborhood"))
-
-   query <- 'match (n {name: "LUC7L3"})-[r]->(m) return n, r, m'
-   x <- query(ns, query)
-   x.tbl <- lapply(x, as.data.frame)
-
-} # test_neighborhood
-#------------------------------------------------------------------------------------------------------------------------
-test_shortestPath <- function()
-{
-   message(sprintf("--- test_shortestPath"))
-   labels <- getNodeLabels(ns)
-     #  [1] ":Anatomy"            ":BiologicalProcess"  ":CellularComponent"  ":Compound"
-     #  [5] ":Disease"            ":Food"               ":Gene"               ":MolecularFunction"
-     #  [9] ":Pathway"            ":PharmacologicClass" ":Protein"            ":SideEffect"
-     # [13] ":Symptom"
-
-     # a trivial case to start: just one hop from n{name: 'LUC7L3'} to m{identifier: 'GO:0008380'}, "RNA splicing"
-     # found 1 node: query(ns, "match (n {name:'LUC7L3'}) return n")
-     # found 1 node: query(ns, "match (n {identifier:'GO:0008380'}) return n")
-
-     # query(ns, "match (n:Gene{name:'LUC7L3'}) return n")
-     #
-   from <- "LUC7L3"
-   to   <- "GO:0008380"
-   s <- paste(sprintf("MATCH (source:Gene {id: '%s'}), (destination:BiologicalProcess {identifer: '%s'})", from, to),
-              "CALL algo.shortestPath.stream(source, destination) YIELD nodeId",
-              "RETURN algo.getNodeById(nodeId).id AS node")
-   query(ns, s)
-
-} # test_shortestPath
-#------------------------------------------------------------------------------------------------------------------------
-# streamToDataFrames <- function(queryResult)
-# {
-#     browser()
-#     stopifnot(all(c("nodes", "relationships", "properties", "data") %in% names(queryResult)))
-#     node.count <- queryResult$nodes[1,1]
-#     edge.count <- queryResult$relationships[1,1]
-#     prop.count <- queryResult$properties[1,1]
-#     data.raw <- queryResult$data[1,1]
-#     lines.raw <- strsplit(data.raw, "\n")[[1]]
-#     lines.tokens <- strsplit(lines.raw, ",")
-#
-#     column.names.raw <- lines.tokens[[1]]
-#     column.names <- unlist(lapply(column.names.raw, function(s) gsub("\"", "", s)))
-#
-#     unlist(lapply(lines.tokens[[2]], function(s) gsub("\"", "", s)))
-#     #tbl.nodes <- data.frame("",
-#
-#     xyz <- 99
-#
-# } # streamToDataFrames
-# #------------------------------------------------------------------------------------------------------------------------
-# test_streamToDataFrames <- function()
-# {
-#    message(sprintf("--- test_streamToDataFrames"))
-#
-#      # https://neo4j-rstats.github.io/user-guide/retrieve.html
-#
-#    qs <- paste('MATCH (tom:Person {name:"Tom Hanks"})-[a:ACTED_IN]->(m)<-[:ACTED_IN]-(coActors)',
-#                'RETURN m AS acted,coActors.name')
-#
-#    res <- call_neo4j(ns@state$db, query, type = "graph")
-#    unnest_nodes(res$nodes)
-#
-#
-#
-#
-#
-#    q <- paste0("MATCH (person:Person)-[role:PLAYED]->(movie:Movie) ",
-#                "WITH collect(DISTINCT person) AS people, collect(DISTINCT movie) AS movies, ",
-#                "collect(role) AS roleRels ",
-#                "CALL apoc.export.csv.data(people + movies, roleRels, null, {stream: true}) ",
-#                "YIELD file, nodes, relationships, properties, data ",
-#                "RETURN file, nodes, relationships, properties, data")
-#    x <- query(ns, q)
-#    #load("streamQueryResults.RData")
-#
-#    q <- paste0("MATCH (n)-[r]->(m) ",
-#                "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
-#                "collect(r) AS edges ",
-#                "CALL apoc.export.csv.data(a + b, edges, null, {stream: true}) ",
-#                "YIELD file,  nodes, relationships, properties, data ",
-#                "RETURN file, nodes, relationships, properties, data")
-#    x <- query(ns, q)
-#
-#    q <- paste0("MATCH (n)-[r]->(m) ",
-#                "WITH collect(DISTINCT n) AS a, collect(DISTINCT m) AS b, ",
-#                "collect(r) AS edges ",
-#                "RETURN a, edges, b, properties, data")
-#    query(ns, q)
-#
-#
-#    q <- paste('MATCH (people:Person)-[relatedTo]-(:Movie {title: "Cloud Atlas"}) ',
-#               'RETURN people.name, Type(relatedTo), relatedTo')
-#   x <- call_neo4j(q, ns@state$db, type = "graph")
-#   unnest_graph(x)
-#
-#
-#    tbls <- streamToDataFrames(x)
-#
-# } # test_streamToDataFrames
-# #------------------------------------------------------------------------------------------------------------------------
 if(!interactive())
    runTests()
