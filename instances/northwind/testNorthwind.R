@@ -24,8 +24,8 @@ test_nodeAndEdgeCounts <- function()
 {
    message(sprintf("--- test_nodeAndEdgeCounts"))
 
-   checkEquals(nodeCount(ns), 1035)
-   checkEquals(edgeCount(ns), 3139)
+   checkEquals(getNodeCount(ns), 1035)
+   checkEquals(getEdgeCount(ns), 3139)
 
    expectedLabels <- c(":Category", ":Customer", ":Order", ":Product", ":Supplier")
    expectedTypes <- c("ORDERS", "PART_OF", "PURCHASED", "SUPPLIES")
@@ -47,27 +47,37 @@ test_nodeAndEdgeTables <- function()
 {
    message(sprintf("--- test_nodeAndEdgeTables"))
 
-   s <- "CALL apoc.export.csv.all(null, {stream:true}) YIELD file, nodes, relationships, properties, data RETURN file, nodes, relationships, properties, data"
-   x <- query(ns, s)
-   nchar(x$data[1,1]) # [1] 574815
+   query <- "match (n:Customer{contactName:'Ana Trujillo'})-[r]->(m) return n,r,m"
 
-   s <- "match (n:Customer{contactName:'Ana Trujillo'})-[r]->(m) return n,r,m"
+   tbls <- getNodeAndEdgeTables(ns, query)
+   checkEquals(names(tbls), c("nodes", "edges"))
 
+   tbl.edges <- tbls$edges
+   tbl.nodes <- tbls$nodes
 
-   tbl.nodes <- getNodeTable(ns)
-   tbl.edges <- getEdgeTable(ns)
-
-   checkEquals(dim(tbl.nodes), c(1035, 40))
-   checkEquals(dim(tbl.edges), c(3, 4))
+   checkEquals(dim(tbl.edges), c(4, 5))
+   checkEquals(dim(tbl.nodes), c(5, 27))
 
 } # test_nodeAndEdgeTables
 #------------------------------------------------------------------------------------------------------------------------
-test_neighborhood <- function()
+test_triangles <- function()
 {
-   message(sprintf("--- test_neighborhood"))
+   message(sprintf("--- test_triangles"))
 
-   query <- 'match (n {name: "LUC7L3"})-[r]->(m) return n, r, m'
-   x <- query(ns, query)
+   # these queries work:
+   #   query(ns, "match (m:Customer)-[r:PURCHASED]-(n:Order) return m,n,type(r) limit 3")
+   #   query(ns, "match (m:Order)-[r:ORDERS]-(n:Product) return m,n,type(r) limit 3")
+   #
+   # but this does not:
+
+   #s <- paste("CALL algo.triangle.stream('Customer','PURCHASED') YIELD nodeA, nodeB, nodeC",
+   s <- paste("CALL algo.triangle.stream('Customer', null) YIELD nodeA, nodeB, nodeC",
+              "RETURN algo.getNodeById(nodeA).id AS nodeA,",
+              "algo.getNodeById(nodeB).id AS nodeB, algo.getNodeById(nodeC).id AS nodeC")
+
+   x <- query(ns, s)
+   x
+
    x.tbl <- lapply(x, as.data.frame)
 
 } # test_neighborhood

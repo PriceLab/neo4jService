@@ -4,7 +4,7 @@
 \alias{getNodeAndEdgeTables,neo4jService-method}
 \title{return a list of two data.frames, nodes and edges, suitable for rendering in RCyjs}
 \usage{
-\S4method{getNodeAndEdgeTables}{neo4jService}(obj, query)
+\S4method{getNodeAndEdgeTables}{neo4jService}(obj, query = NA)
 }
 \arguments{
 \item{obj}{neo4jService object}

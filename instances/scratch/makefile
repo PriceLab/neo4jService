@@ -34,6 +34,10 @@ fill.local:
 	docker exec --interactive --tty $(CONTAINER) \
           /bin/bash -c 'cat /var/lib/neo4j/import/createMovieDemo.cypher | bin/cypher-shell -u neo4j -p hoopa'
 
+fill.personsKnowingPersons:
+	docker exec --interactive --tty $(CONTAINER) \
+          /bin/bash -c cat /var/lib/neo4j/import/peopleKnowingPeople.cypher | bin/cypher-shell -u neo4j -p hoopa
+
 delete.db:
 	docker exec --interactive --tty $(CONTAINER) \
           /bin/bash -c 'cat /var/lib/neo4j/import/clearDataBase.cypher | bin/cypher-shell -u neo4j -p hoopa'

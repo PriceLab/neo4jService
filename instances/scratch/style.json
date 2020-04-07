@@ -1,12 +1,45 @@
-vizmap = [
-  {
-    "selector": "node",
+vizmap = [{
+  "selector": "node",
     "style": {
-      "height": 40,
-      "width": 40,
-      "background-color": "#ccc",
-      "label": "data(label)"
-    }
-  },
+       "shape": "ellipse",
+       "text-valign":"center",
+       "text-halign":"center",
+       "font-size": "8px",
+       "height": 40,
+       "width": 40,
+       "background-color": "#eee",
+       "border-width": "1px",
+       "border-color": "red",
+       "label": "data(label)"
+       }},
 
-]
+    {"selector": "node[value='Person']", style: {
+       "shape": "rectangle"
+       }}, 
+
+    {"selector": "edge",
+     "style": {
+        "line-style": "solid",
+        "width": "1px",
+	"curve-style": "bezier",
+	"target-arrow-shape": "triangle",
+	"target-arrow-color": "darkgreen",
+	"line-color": "black"
+	}},
+
+   {selector:"node:selected", css: {
+       "text-valign":"center",
+       "text-halign":"center",
+       "border-color": "black",
+       "content": "data(id)",
+       "border-width": "1px",
+       "overlay-opacity": 0.2,
+       "overlay-color": "gray"
+       }},
+
+    {selector: 'edge:selected', css: {
+       "overlay-opacity": 0.2,
+       "overlay-color": "gray"
+        }},
+
+   ];

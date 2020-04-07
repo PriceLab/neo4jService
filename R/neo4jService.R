@@ -326,7 +326,7 @@ setMethod('getEdgeTypeDistribution', 'neo4jService',
       function(obj){
           edgeTypes <- getEdgeTypes(obj)
           counts <- lapply(edgeTypes, function(type)
-                             query(ns, sprintf("match ()-[r:%s]-() return count(r)", type))$value)
+                             query(obj, sprintf("match ()-[r:%s]-() return count(r)", type))$value)
           names(counts) <- edgeTypes
           data.frame(type=names(counts), count=as.numeric(counts), stringsAsFactors=FALSE)
           }) # getEdgeTypeDistribution
@@ -348,7 +348,9 @@ setMethod('getEdgeTypeDistribution', 'neo4jService',
 #'
 setMethod('getNodeAndEdgeTables', 'neo4jService',
 
-       function(obj, query){
+       function(obj, query=NA){
+           if(is.na(query))
+              query <- "match (n)-[r]->(m) return n, r, m"
            x <- call_neo4j(query, obj@state$db, type="graph")
            x.graph <- unnest_graph(x)
            tbl.nodes <- as.data.frame(x.graph$nodes)

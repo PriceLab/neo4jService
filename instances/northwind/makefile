@@ -1,7 +1,7 @@
 CONTAINER=northwind_neo4j
 
 default:
-	@targets: stop start bash
+	@echo targets: stop start bash
 
 stop:
 	- docker stop $(CONTAINER); docker rm northwind_neo4j
